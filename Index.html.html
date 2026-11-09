@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2e7d5b">
+<title>Dairy Manager – Daily Milk Sales &amp; Billing</title>
+<style>
+:root{--bg:#f6f7f4;--card:#fff;--tx:#1d2a22;--mu:#66756b;--ac:#2e7d5b;--ac2:#e8f3ee;--bd:#dde3dc;--rd:#c0392b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141a16;--card:#1e2721;--tx:#e8eee9;--mu:#93a398;--ac:#4cc38a;--ac2:#25382d;--bd:#33423a;--rd:#ef7b6d}}
+:root[data-theme="dark"]{--bg:#141a16;--card:#1e2721;--tx:#e8eee9;--mu:#93a398;--ac:#4cc38a;--ac2:#25382d;--bd:#33423a;--rd:#ef7b6d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{padding:14px 16px 0;max-width:1000px;margin:auto}
+h1{font-size:20px;margin:0 0 10px}
+nav{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px}
+nav button{white-space:nowrap;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 14px;border-radius:20px;cursor:pointer;font:inherit}
+nav button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+main{max-width:1000px;margin:auto;padding:8px 16px 40px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:var(--ac2);border-radius:10px;padding:10px 12px}
+.stat small{color:var(--mu);display:block}.stat b{font-size:19px}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--bd);white-space:nowrap}
+th{color:var(--mu);font-weight:600;font-size:13px}
+td.r,th.r{text-align:right}
+input,select{font:inherit;padding:7px 9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);max-width:100%}
+td input{width:90px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:10px}
+.row label{display:flex;flex-direction:column;font-size:13px;color:var(--mu);gap:3px}
+.btn{background:var(--ac);color:#fff;border:0;padding:8px 14px;border-radius:8px;cursor:pointer;font:inherit}
+.btn.g{background:var(--ac2);color:var(--ac)}.btn.d{background:transparent;color:var(--rd);padding:4px 8px}
+.due{color:var(--rd);font-weight:600}
+h2{font-size:16px;margin:0 0 10px}
+.tot td{font-weight:700;border-top:2px solid var(--tx)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.mu{color:var(--mu)}
+html{-webkit-text-size-adjust:100%}header{position:sticky;top:0;z-index:5;background:var(--bg)}nav{scrollbar-width:none}nav::-webkit-scrollbar{display:none}
+@media screen and (max-width:640px){
+body{font-size:15px}header{padding:10px 12px 0}main{padding:8px 10px 40px}h1{font-size:16px;line-height:1.3}
+nav button{padding:10px 14px;min-height:42px}.btn{min-height:42px;padding:9px 14px}.btn.d{min-height:36px}
+input,select,textarea{font-size:16px}
+.row{gap:10px}.row label{flex:1 1 140px}.row>.btn{flex:1 1 100%}
+.row input:not([type=checkbox]),.row select{width:100%!important;min-width:0!important}
+.row input[type=checkbox]{width:20px;height:20px}td input[type=checkbox]{width:20px!important;height:20px}
+.card{padding:12px;border-radius:10px}.grid{grid-template-columns:1fr 1fr}.stat b{font-size:17px}
+th,td{padding:8px 6px;font-size:14px}td input{width:76px}
+.two{grid-template-columns:1fr}
+}
+@media print{header,nav,.noprint{display:none!important}body{background:#fff;color:#000}.card{border:0}}
+</style>
+</head>
+<body>
+<header><h1>🥛 Dairy Manager</h1>
+<nav id="nav"></nav></header>
+<main id="main"></main>
+<script>
+const TABS=["Dashboard","Customers","Daily Entry","Other Items","Billing","Print Bills","Payments","Expenses","Balance Sheet","Settings"];
+let tab="Dashboard",S;
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt=n=>"₹"+(+n||0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+const uid=()=>Math.random().toString(36).slice(2,9);
+const $=id=>document.getElementById(id);
+function load(){try{S=JSON.parse(localStorage.getItem("dairy")||"null")}catch(e){S=null}
+ if(!S)S={rate:60,capital:50000,name:"My Dairy",cust:[],ent:{},pay:[],exp:[]};if(!S.firm)S.firm={user:"",name:"",addr:"",phone:"",gst:"",fssai:"",upi:"",terms:"Please pay by the due date. Milk is delivered daily; report any shortage within 2 days.",dueDays:7}}
+function save(){try{localStorage.setItem("dairy",JSON.stringify(S))}catch(e){}}
+const cname=id=>(S.cust.find(c=>c.id===id)||{name:"(deleted)"}).name;
+// ledger helpers
+function sales(cid,from,to){let q=0,a=0;for(const k in S.ent){const[d,c]=k.split("|");if((!cid||c===cid)&&(!from||d>=from)&&(!to||d<=to)){q+=S.ent[k].q;a+=S.ent[k].q*S.ent[k].r}}let o=0;for(const x of S.oth||[])if((!cid||x.c===cid)&&(!from||x.d>=from)&&(!to||x.d<=to))o+=x.q*x.r;return{q,a:a+o,o}}
+//
+function paid(cid,from,to){return S.pay.filter(p=>(!cid||p.c===cid)&&(!from||p.d>=from)&&(!to||p.d<=to)).reduce((s,p)=>s+p.a,0)}
+function dueOf(cid,to){return sales(cid,null,to).a-paid(cid,null,to)}
+
+function render(){
+ if(!S.users.length||!cur){document.querySelector("h1").textContent="🥛 Dairy Manager";$("nav").innerHTML="";$("main").innerHTML=S.users.length?loginPage():setupPage();return}
+ if(!tabsFor().includes(tab))tab="Dashboard";document.querySelector("h1").innerHTML="🥛 "+esc(S.firm.name)+' <small class="mu" style="font-weight:400">· '+esc(cur.name)+' ('+cur.role+') <button class="btn g" onclick="logout()">Logout</button></small>';
+ $("nav").innerHTML=tabsFor().map(t=>`<button class="${t===tab?"on":""}" onclick="tab='${t}';render()">${t}</button>`).join("");
+ $("main").innerHTML=({Dashboard:dash,Customers:custs,"Daily Entry":daily,"Other Items":others,Billing:billing,"Print Bills":pbills,Payments:payments,Users:users,Account:account,Expenses:expenses,"Balance Sheet":bsheet,Settings:settings})[tab]();
+ if(tab==="Daily Entry")dailyCalc();
+}
+function dash(){const t=today(),m=t.slice(0,7);const td=sales(null,t,t),mo=sales(null,m+"-01",m+"-31");
+ const out=S.cust.map(c=>({n:c.name,d:dueOf(c.id,"9999")})).filter(x=>x.d>0.005).sort((a,b)=>b.d-a.d);
+ return `${bkWarn()}<div class="card"><div class="grid">
+ <div class="stat"><small>Today litres</small><b>${td.q.toFixed(1)} L</b></div>
+ <div class="stat"><small>Today sales</small><b>${fmt(td.a)}</b></div>
+ <div class="stat"><small>This month sales</small><b>${fmt(mo.a)}</b></div>
+ <div class="stat"><small>Total receivable</small><b>${fmt(out.reduce((s,x)=>s+x.d,0))}</b></div>
+ <div class="stat"><small>Customers</small><b>${S.cust.length}</b></div></div></div>
+ <div class="card"><h2>Outstanding dues</h2>${out.length?`<div class="tw"><table><tr><th>Customer</th><th class="r">Due</th></tr>${out.map(x=>`<tr><td>${esc(x.n)}</td><td class="r due">${fmt(x.d)}</td></tr>`).join("")}</table></div>`:'<p class="mu">No dues. Add customers and start daily entries.</p>'}</div>`}
+function custs(){return `<div class="card"><h2>Add customer</h2><div class="row">
+ <label>Name<input id="cn"></label><label>Phone<input id="cp"></label><label>Address<input id="ca"></label>
+ <label>Daily litres<input id="cq" type="number" step="0.25" value="1" style="width:90px"></label>
+ <label>Rate/L (blank = default)<input id="cr" type="number" step="0.5" style="width:120px"></label>
+ <button class="btn" onclick="addCust()">Add</button></div></div>
+ <div class="card tw"><table><tr><th>Name</th><th>Phone</th><th class="r">Default L</th><th class="r">Rate</th><th class="r">Due</th><th></th></tr>
+ ${S.cust.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.phone)}</td><td class="r">${c.q}</td><td class="r">${fmt(c.rate||S.rate)}</td><td class="r">${fmt(dueOf(c.id,"9999"))}</td><td>${delPend===c.id?`<button class="btn d" onclick="delCust('${c.id}')">Confirm delete</button> <button class="btn g" onclick="delPend=null;render()">Cancel</button>`:`<button class="btn d" onclick="delPend='${c.id}';render()">Delete</button>`}</td></tr>`).join("")||'<tr><td class="mu">No customers yet</td></tr>'}</table></div>`}
+function addCust(){const n=$("cn").value.trim();if(!n)return alert("Enter name");
+ S.cust.push({id:uid(),name:n,phone:$("cp").value,addr:$("ca").value,q:+$("cq").value||0,rate:+$("cr").value||0});save();render()}
+let delPend=null;function delCust(id){S.cust=S.cust.filter(c=>c.id!==id);delPend=null;if(pbSel)pbSel.delete(id);save();render()}
+function resetData(){const b=$("rs");if(b.dataset.s){try{localStorage.removeItem("dairy")}catch(e){}load();render()}else{b.dataset.s=1;b.textContent="Click again to erase ALL data"}}
+let dDate=today();
+function daily(){return `<div class="card"><h2>Daily milk delivery</h2><div class="row">
+ <label>Date<input type="date" id="dd" value="${dDate}" onchange="dDate=this.value;render()"></label>
+ <button class="btn g" onclick="fillDef()">Fill default litres</button>
+ <button class="btn" onclick="saveDaily()">Save day</button></div>
+ <div class="tw"><table><tr><th>Customer</th><th>Litres</th><th class="r">Rate</th><th class="r">Amount</th></tr>
+ ${S.cust.map(c=>{const e=S.ent[dDate+"|"+c.id];return `<tr><td>${esc(c.name)}</td><td><input type="number" step="0.25" min="0" data-c="${c.id}" value="${e?e.q:""}" oninput="dailyCalc()"></td><td class="r">${fmt(e?e.r:(c.rate||S.rate))}</td><td class="r" id="a_${c.id}"></td></tr>`}).join("")||'<tr><td class="mu">Add customers first</td></tr>'}
+ <tr class="tot"><td>Total</td><td id="tq"></td><td></td><td class="r" id="ta"></td></tr></table></div></div>`}
+function dailyCalc(){let q=0,a=0;document.querySelectorAll("[data-c]").forEach(i=>{const c=S.cust.find(x=>x.id===i.dataset.c),e=S.ent[dDate+"|"+c.id],r=e?e.r:(c.rate||S.rate),v=+i.value||0;q+=v;a+=v*r;$("a_"+c.id).textContent=v?fmt(v*r):""});$("tq").textContent=q.toFixed(2)+" L";$("ta").textContent=fmt(a)}
+function fillDef(){document.querySelectorAll("[data-c]").forEach(i=>{if(!i.value)i.value=S.cust.find(x=>x.id===i.dataset.c).q||""});dailyCalc()}
+function saveDaily(){document.querySelectorAll("[data-c]").forEach(i=>{const c=S.cust.find(x=>x.id===i.dataset.c),k=dDate+"|"+c.id,v=+i.value||0;
+ if(v>0)S.ent[k]={q:v,r:S.ent[k]?S.ent[k].r:(c.rate||S.rate)};else delete S.ent[k]});save();render();alert("Saved for "+dDate)}
+let bMonth=today().slice(0,7),bCust="";
+function billing(){const f=bMonth+"-01",t=bMonth+"-31";
+ const rows=S.cust.map(c=>{const op=dueOf(c.id,prevDay(f)),s=sales(c.id,f,t),p=paid(c.id,f,t);return{c,op,s,p,cl:op+s.a-p}});
+ let html=`<div class="card"><h2>Monthly postpaid bills</h2><div class="row"><label>Month<input type="month" value="${bMonth}" onchange="bMonth=this.value;bCust='';render()"></label>
+ <button class="btn g noprint" onclick="printDoc()">Print summary</button><button class="btn noprint" onclick="printBills(S.cust.map(c=>c.id))">Print all bills (one per page)</button></div><div class="tw"><table><tr><th>Customer</th><th class="r">Opening due</th><th class="r">Litres</th><th class="r">Bill amount</th><th class="r">Paid</th><th class="r">Closing due</th><th></th></tr>
+ ${rows.map(r=>`<tr><td>${esc(r.c.name)}</td><td class="r">${fmt(r.op)}</td><td class="r">${r.s.q.toFixed(1)}</td><td class="r">${fmt(r.s.a)}</td><td class="r">${fmt(r.p)}</td><td class="r ${r.cl>0.005?"due":""}">${fmt(r.cl)}</td><td><button class="btn g noprint" onclick="bCust='${r.c.id}';render()">Bill</button> <button class="btn g noprint" onclick="printBills(['${r.c.id}'])">Print</button></td></tr>`).join("")}
+ <tr class="tot"><td>Total</td><td class="r">${fmt(sum(rows,"op"))}</td><td class="r">${rows.reduce((s,r)=>s+r.s.q,0).toFixed(1)}</td><td class="r">${fmt(rows.reduce((s,r)=>s+r.s.a,0))}</td><td class="r">${fmt(sum(rows,"p"))}</td><td class="r">${fmt(sum(rows,"cl"))}</td><td></td></tr></table></div></div>`;
+ if(bCust){html+=`<button class="btn g noprint" onclick="printBills(['${bCust}'])">Print this bill</button>`+billCard2(bCust);const r=null;if(r){const days=Object.keys(S.ent).filter(k=>k.endsWith("|"+bCust)&&k.slice(0,7)===bMonth).sort();
+ html+=`<div class="card"><h2>${esc(S.name)} – Bill for ${bMonth}</h2><button class="btn g noprint" onclick="printBills(['${bCust}'])">Print this bill</button><p>Customer: <b>${esc(r.c.name)}</b> ${esc(r.c.phone)}</p><div class="tw"><table><tr><th>Date</th><th class="r">Litres</th><th class="r">Rate</th><th class="r">Amount</th></tr>
+ ${days.map(k=>{const e=S.ent[k];return `<tr><td>${k.slice(0,10)}</td><td class="r">${e.q}</td><td class="r">${fmt(e.r)}</td><td class="r">${fmt(e.q*e.r)}</td></tr>`}).join("")}
+ <tr class="tot"><td>Month total</td><td class="r">${r.s.q.toFixed(2)}</td><td></td><td class="r">${fmt(r.s.a)}</td></tr>
+ <tr><td colspan="3">Previous balance</td><td class="r">${fmt(r.op)}</td></tr><tr><td colspan="3">Payments received</td><td class="r">- ${fmt(r.p)}</td></tr>
+ <tr class="tot"><td colspan="3">Amount payable</td><td class="r">${fmt(r.cl)}</td></tr></table></div></div>`}}
+ return html}
+const sum=(a,k)=>a.reduce((s,x)=>s+x[k],0);
+function prevDay(d){const x=new Date(d+"T00:00:00");x.setDate(x.getDate()-1);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")}
+function payments(){return `<div class="card"><h2>Receive payment</h2><div class="row"><label>Date<input type="date" id="pd" value="${today()}"></label>
+ <label>Customer<select id="pc">${S.cust.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select></label>
+ <label>Amount<input id="pa" type="number" step="0.01" style="width:110px"></label>
+ <label>Mode<select id="pm"><option>Cash</option><option>UPI</option><option>Bank</option></select></label>
+ <button class="btn" onclick="addPay()">Add</button></div></div>
+ <div class="card tw"><table><tr><th>Date</th><th>Customer</th><th>Mode</th><th class="r">Amount</th><th></th></tr>
+ ${[...S.pay].sort((a,b)=>b.d.localeCompare(a.d)).map(p=>`<tr><td>${p.d}</td><td>${esc(cname(p.c))}</td><td>${p.m}</td><td class="r">${fmt(p.a)}</td><td>${cur.role==="admin"?`<button class="btn d" onclick="delPay('${p.id}')">✕</button>`:""}</td></tr>`).join("")||'<tr><td class="mu">No payments yet</td></tr>'}</table></div>`}
+function addPay(){const a=+$("pa").value;if(!a||!$("pc").value)return alert("Select customer and amount");S.pay.push({id:uid(),d:$("pd").value,c:$("pc").value,a,m:$("pm").value});save();render()}
+function delPay(id){if(!cur||cur.role!=="admin")return;S.pay=S.pay.filter(p=>p.id!==id);save();render()}
+function expenses(){return `<div class="card"><h2>Add expense (milk purchase, feed, salary, etc.)</h2><div class="row"><label>Date<input type="date" id="ed" value="${today()}"></label>
+ <label>Description<input id="et"></label><label>Amount<input id="ea" type="number" step="0.01" style="width:110px"></label><button class="btn" onclick="addExp()">Add</button></div></div>
+ <div class="card tw"><table><tr><th>Date</th><th>Description</th><th class="r">Amount</th><th></th></tr>
+ ${[...S.exp].sort((a,b)=>b.d.localeCompare(a.d)).map(p=>`<tr><td>${p.d}</td><td>${esc(p.t)}</td><td class="r">${fmt(p.a)}</td><td><button class="btn d" onclick="delExp('${p.id}')">✕</button></td></tr>`).join("")||'<tr><td class="mu">No expenses yet</td></tr>'}</table></div>`}
+function addExp(){const a=+$("ea").value;if(!a)return alert("Enter amount");S.exp.push({id:uid(),d:$("ed").value,t:$("et").value||"Expense",a});save();render()}
+function delExp(id){S.exp=S.exp.filter(p=>p.id!==id);save();render()}
+let asOf=today();
+function bsheet(){const sl=sales(null,null,asOf).a,pd=paid(null,null,asOf),ex=S.exp.filter(e=>e.d<=asOf).reduce((s,e)=>s+e.a,0);
+ const cash=S.capital+pd-ex,ar=sl-pd,assets=cash+ar,profit=sl-ex,eq=S.capital+profit;
+ return `<div class="card"><h2>Balance Sheet – ${esc(S.name)}</h2><div class="row"><label>As on<input type="date" value="${asOf}" onchange="asOf=this.value;render()"></label><button class="btn g noprint" onclick="printDoc()">Print</button></div>
+ <div class="two"><div><table><tr><th colspan="2">ASSETS</th></tr><tr><td>Cash / Bank</td><td class="r">${fmt(cash)}</td></tr><tr><td>Accounts receivable (customer dues)</td><td class="r">${fmt(ar)}</td></tr><tr class="tot"><td>Total assets</td><td class="r">${fmt(assets)}</td></tr></table></div>
+ <div><table><tr><th colspan="2">LIABILITIES &amp; EQUITY</th></tr><tr><td>Liabilities</td><td class="r">${fmt(0)}</td></tr><tr><td>Owner capital</td><td class="r">${fmt(S.capital)}</td></tr><tr><td>Retained earnings (profit)</td><td class="r">${fmt(profit)}</td></tr><tr class="tot"><td>Total liabilities &amp; equity</td><td class="r">${fmt(eq)}</td></tr></table></div></div>
+ <p class="mu">${Math.abs(assets-eq)<0.01?"✓ Balanced":"Not balanced"}</p></div>
+ <div class="card"><h2>Profit &amp; Loss (up to ${asOf})</h2><table><tr><td>Sales (milk &amp; other items)</td><td class="r">${fmt(sl)}</td></tr><tr><td>Less: expenses</td><td class="r">${fmt(ex)}</td></tr><tr class="tot"><td>Net profit</td><td class="r">${fmt(profit)}</td></tr></table></div>`}
+function settings(){return `<div class="card"><h2>User &amp; firm profile</h2>${firmForm()}<button class="btn" onclick="firmSave()">Save profile</button></div><div class="card"><h2>Settings</h2><div class="row"><label>Dairy name<input id="sn" value="${esc(S.name)}"></label>
+ <label>Default rate per litre<input id="sr" type="number" step="0.5" value="${S.rate}" style="width:120px"></label>
+ <label>Opening capital<input id="sc" type="number" value="${S.capital}" style="width:130px"></label><button class="btn" onclick="saveSet()">Save</button></div>
+ <p class="mu">Rate changes apply to future entries only; past entries keep their rate. Data is stored in this browser.</p>
+ <h2>Backup &amp; restore</h2><p class="mu">Data lives in this browser only. Save a backup file to your device regularly. ${S.lastBackup?"Last backup: "+new Date(S.lastBackup).toLocaleString():"No backup taken yet."}</p><div class="row"><button class="btn" onclick="backup()">Save backup to device</button><label>Restore from backup file<input type="file" accept=".json,application/json" onchange="restore(this.files[0])"></label></div><div id="bmsg" class="mu"></div><div id="rmsg" class="mu"></div><hr> <button class="btn d" id="rs" onclick="resetData()">Reset all</button></div>`}
+function saveSet(){S.name=$("sn").value||"My Dairy";S.rate=+$("sr").value||0;S.capital=+$("sc").value||0;save();alert("Saved")}
+async function backup(){const j=JSON.stringify(S,null,1),m=$("bmsg");let d=null;try{d=window.claude&&await claude.use("downloads")}catch(e){}
+ if(!d){m.innerHTML='Direct download is not available here. Copy this text and save it in a .json file:<br><textarea readonly rows="5" style="width:100%" onclick="this.select()">'+esc(j)+'</textarea>';return}
+ try{await d.save({filename:"dairy-backup-"+today()+".json",data:j});S.lastBackup=Date.now();save();m.textContent="✓ Backup saved to your device."}catch(e){m.textContent=e&&e.code==="declined"?"Backup cancelled.":"Backup could not be saved ("+((e&&e.code)||"error")+")."}}
+let rpend=null;
+function restore(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);if(!o||!Array.isArray(o.cust)||!o.ent||!Array.isArray(o.pay))throw 0;rpend=o;$("rmsg").innerHTML=`File has ${o.cust.length} customers, ${Object.keys(o.ent).length} delivery entries, ${o.pay.length} payments. <button class="btn" onclick="applyRestore()">Replace current data with this</button>`}catch(e){$("rmsg").textContent="Not a valid Dairy Manager backup file."}};r.readAsText(f)}
+function applyRestore(){S=rpend;S.exp=S.exp||[];S.firm=S.firm||{user:"",name:"",addr:"",phone:"",gst:"",fssai:"",upi:"",terms:"",dueDays:7};save();pbSel=null;logout()}
+function bkWarn(){if(!S.cust.length||(S.lastBackup&&Date.now()-S.lastBackup<6048e5))return"";return `<div class="card" style="border-color:var(--rd)">⚠ ${S.lastBackup?"Last backup was over 7 days ago.":"You have not taken a backup yet."} <button class="btn g" onclick="tab='Settings';render()">Back up now</button></div>`}
+function billCard(cid){const c=S.cust.find(x=>x.id===cid);if(!c)return"";const f=bMonth+"-01",t=bMonth+"-31";
+ const op=dueOf(cid,prevDay(f)),s=sales(cid,f,t),p=paid(cid,f,t),cl=op+s.a-p;
+ const days=Object.keys(S.ent).filter(k=>k.endsWith("|"+cid)&&k.slice(0,7)===bMonth).sort();
+ return `<div class="card bill"><h2>${esc(S.name)} – Milk Bill for ${bMonth}</h2><p>Customer: <b>${esc(c.name)}</b> ${esc(c.phone)}<br>Bill date: ${today()}</p><div class="tw"><table><tr><th>Date</th><th class="r">Litres</th><th class="r">Rate</th><th class="r">Amount</th></tr>
+ ${days.map(k=>{const e=S.ent[k];return `<tr><td>${k.slice(0,10)}</td><td class="r">${e.q}</td><td class="r">${fmt(e.r)}</td><td class="r">${fmt(e.q*e.r)}</td></tr>`}).join("")}
+ <tr class="tot"><td>Month total</td><td class="r">${s.q.toFixed(2)}</td><td></td><td class="r">${fmt(s.a)}</td></tr>
+ <tr><td colspan="3">Previous balance</td><td class="r">${fmt(op)}</td></tr><tr><td colspan="3">Payments received</td><td class="r">- ${fmt(p)}</td></tr>
+ <tr class="tot"><td colspan="3">Amount payable</td><td class="r">${fmt(cl)}</td></tr></table></div></div>`}
+function printBills(ids){
+ const body=ids.map(billCard2).join("");if(!body)return alert("No customers to print");
+ const css=document.querySelector("style").textContent+".bill{page-break-after:always}.bill:last-child{page-break-after:auto}";
+ const h='<!DOCTYPE html><html data-theme="light"><head><meta charset="utf-8"><title>Bills '+bMonth+'</title><style>'+css+'</style></head><body><main>'+body+'</main></body></html>';
+ let w=null;try{w=window.open("","_blank")}catch(e){}
+ if(w){w.document.open();w.document.write(h);w.document.close();setTimeout(()=>{try{w.focus();w.print()}catch(e){}},400)}
+ else alert("Pop-ups are blocked. Allow pop-ups for this site, or open the artifact link in its own browser tab, and try again.")}
+const FF=[["user","Owner / prepared-by name *"],["name","Firm / dairy name *"],["addr","Address"],["phone","Phone"],["gst","GSTIN (optional)"],["fssai","FSSAI licence no."],["upi","UPI ID / bank details"],["terms","Bill terms / note"]];
+function firmForm(){return '<div class="row">'+FF.map(([k,l])=>`<label>${l}<input id="f_${k}" value="${esc(S.firm[k])}" style="min-width:200px"></label>`).join("")+'</div>'}
+function firmSave(){const g=k=>$("f_"+k).value.trim();if(!g("user")||!g("name"))return alert("User name and firm name are required");FF.forEach(([k])=>S.firm[k]=g(k));S.name=S.firm.name;save();render()}
+function addDays(d,n){const x=new Date(d+"T00:00:00");x.setDate(x.getDate()+n);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")}
+function billCard2(cid){const i=S.cust.findIndex(x=>x.id===cid);if(i<0)return"";const c=S.cust[i],F=S.firm,f=bMonth+"-01",last=new Date(+bMonth.slice(0,4),+bMonth.slice(5),0).getDate(),t=bMonth+"-"+last;
+ const op=dueOf(cid,prevDay(f)),s=sales(cid,f,t),pays=S.pay.filter(p=>p.c===cid&&p.d>=f&&p.d<=t),p=pays.reduce((a,x)=>a+x.a,0),cl=op+s.a-p;
+ const days=Object.keys(S.ent).filter(k=>k.endsWith("|"+cid)&&k.slice(0,7)===bMonth).sort();
+ const inv="INV-"+bMonth.replace("-","")+"-"+String(i+1).padStart(3,"0"),bd=today();
+ return `<div class="card bill"><div style="text-align:center"><h2 style="font-size:22px;margin:0">${esc(F.name)}</h2><div>${esc(F.addr)}</div><div class="mu">${[F.phone&&"Ph: "+esc(F.phone),F.fssai&&"FSSAI: "+esc(F.fssai),F.gst&&"GSTIN: "+esc(F.gst)].filter(Boolean).join(" | ")}</div><b>MILK BILL / INVOICE</b></div><hr>
+ <div class="two"><div><b>Bill to</b><br>${esc(c.name)}<br>${esc(c.addr||"")}<br>${esc(c.phone||"")}</div><div>Invoice no: <b>${inv}</b><br>Bill date: ${bd}<br>Period: ${f} to ${t}<br>Due date: <b>${addDays(bd,+F.dueDays||0)}</b></div></div>
+ <div class="tw"><table><tr><th>#</th><th>Date</th><th class="r">Litres</th><th class="r">Rate/L</th><th class="r">Amount</th></tr>${days.map((k,n)=>{const e=S.ent[k];return `<tr><td>${n+1}</td><td>${k.slice(0,10)}</td><td class="r">${e.q}</td><td class="r">${fmt(e.r)}</td><td class="r">${fmt(e.q*e.r)}</td></tr>`}).join("")||'<tr><td colspan="5">No deliveries this month</td></tr>'}
+ ${s.o>0.005?`<tr class="tot"><td colspan="2">Milk (${days.length} days)</td><td class="r">${s.q.toFixed(2)} L</td><td></td><td class="r">${fmt(s.a-s.o)}</td></tr>${othRows(cid,f,t)}<tr class="tot"><td colspan="4">Total bill amount</td><td class="r">${fmt(s.a)}</td></tr>`:`<tr class="tot"><td colspan="2">Total (${days.length} days)</td><td class="r">${s.q.toFixed(2)} L</td><td></td><td class="r">${fmt(s.a)}</td></tr>`}
+ <tr><td colspan="4">Previous balance</td><td class="r">${fmt(op)}</td></tr><tr><td colspan="4">Payments received${pays.length?" ("+pays.map(x=>x.d.slice(5)+" "+x.m).join(", ")+")":""}</td><td class="r">- ${fmt(p)}</td></tr>
+ <tr class="tot"><td colspan="4">${cl<=0.005?"NET PAYABLE (PAID)":"NET PAYABLE"}</td><td class="r">${fmt(cl)}</td></tr></table></div>
+ ${F.upi?`<p>Pay via: <b>${esc(F.upi)}</b></p>`:""}<p class="mu">${esc(F.terms)}</p>
+ <div style="display:flex;justify-content:space-between;margin-top:30px"><span class="mu">Prepared by: ${esc(cur?cur.name:F.user)}</span><span>Authorised signatory<br>${esc(F.name)}</span></div></div>`}
+let pbSel=null;
+function pbAll(v){pbSel=new Set(v?S.cust.map(c=>c.id):[]);render()}
+function pbTog(id,v){v?pbSel.add(id):pbSel.delete(id);render()}
+function pbills(){if(!pbSel)pbSel=new Set(S.cust.map(c=>c.id));const f=bMonth+"-01",t=bMonth+"-31";
+ const rows=S.cust.map(c=>{const s=sales(c.id,f,t);return{c,s,cl:dueOf(c.id,prevDay(f))+s.a-paid(c.id,f,t)}});
+ return `<div class="card noprint"><h2>Print separate bills</h2><div class="row"><label>Month<input type="month" value="${bMonth}" onchange="bMonth=this.value;render()"></label>
+ <label>Due in (days)<input type="number" value="${S.firm.dueDays}" style="width:90px" onchange="S.firm.dueDays=+this.value||0;save();render()"></label>
+ <label>Select<span><input type="checkbox" style="width:auto" ${rows.length&&rows.every(r=>pbSel.has(r.c.id))?"checked":""} onchange="pbAll(this.checked)"> All customers</span></label>
+ <button class="btn" onclick="printBills([...pbSel])">Print selected (${pbSel.size})</button></div>
+ <div class="tw"><table><tr><th></th><th>Customer</th><th class="r">Litres</th><th class="r">Month bill</th><th class="r">Payable</th><th></th></tr>
+ ${rows.map(r=>`<tr><td><input type="checkbox" style="width:auto" ${pbSel.has(r.c.id)?"checked":""} onchange="pbTog('${r.c.id}',this.checked)"></td><td>${esc(r.c.name)}</td><td class="r">${r.s.q.toFixed(1)}</td><td class="r">${fmt(r.s.a)}</td><td class="r">${fmt(r.cl)}</td><td><button class="btn g" onclick="printBills(['${r.c.id}'])">Print</button></td></tr>`).join("")||'<tr><td class="mu">No customers</td></tr>'}</table></div></div>
+ ${[...pbSel].map(billCard2).join("")}`}
+let cur=null,uDel=null,uRes=null;
+const STAFF=["Dashboard","Customers","Daily Entry","Other Items","Billing","Print Bills","Payments"];
+function tabsFor(){return cur.role==="admin"?[...TABS,"Users","Account"]:[...STAFF,"Account"]}
+function sess(){if(!S.users)S.users=[];if(!S.items)S.items=[{id:"i1",name:"Curd",unit:"kg",rate:80},{id:"i2",name:"Ghee",unit:"kg",rate:700},{id:"i3",name:"Paneer",unit:"kg",rate:400},{id:"i4",name:"Buttermilk",unit:"L",rate:20}];if(!S.oth)S.oth=[];try{const id=sessionStorage.getItem("dairyUser");cur=S.users.find(u=>u.id===id)||null}catch(e){}}
+function logout(){cur=null;try{sessionStorage.removeItem("dairyUser")}catch(e){}if(!S.users)S.users=[];render()}
+async function hash(p,salt){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(salt+":"+p));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
+function msg(id,t,ok){const m=$(id);if(m){m.textContent=t;m.style.color=ok?"var(--ac)":"var(--rd)"}}
+function setSess(u){cur=u;try{sessionStorage.setItem("dairyUser",u.id)}catch(e){}tab="Dashboard"}
+function loginPage(){return `<div class="card" style="max-width:380px;margin:30px auto"><h2>Login – ${esc(S.firm.name)}</h2><div class="row" style="flex-direction:column;align-items:stretch"><label>User name<input id="lu" autocomplete="username"></label><label>Password<input id="lp" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></label><button class="btn" onclick="doLogin()">Login</button><div id="lm"></div></div><p class="mu">Forgot your password? Ask an admin to reset it.</p></div>`}
+async function doLogin(){const u=S.users.find(x=>x.user===$("lu").value.trim().toLowerCase());if(!u||await hash($("lp").value,u.salt)!==u.hash){await new Promise(r=>setTimeout(r,600));return msg("lm","Wrong user name or password")}setSess(u);render()}
+function setupPage(){return `<div class="card"><h2>First-time setup</h2><p class="mu">Register your firm (printed on every bill) and create the administrator login.</p>${firmForm()}<h2>Administrator login</h2><div class="row"><label>Login user name *<input id="su"></label><label>Password * (min 6)<input id="sp" type="password"></label><label>Confirm password<input id="sp2" type="password"></label></div><button class="btn" onclick="setupSave()">Create account</button> <span id="sm"></span></div>`}
+async function setupSave(){const g=k=>$("f_"+k).value.trim(),un=$("su").value.trim().toLowerCase(),p=$("sp").value;
+ if(!g("user")||!g("name"))return msg("sm","Owner name and firm name are required");if(!un)return msg("sm","Enter a login user name");if(p.length<6)return msg("sm","Password must be at least 6 characters");if(p!==$("sp2").value)return msg("sm","Passwords do not match");
+ FF.forEach(([k])=>S.firm[k]=g(k));S.name=S.firm.name;const salt=uid(),u={id:uid(),name:S.firm.user,user:un,role:"admin",salt,hash:await hash(p,salt)};S.users=[u];save();setSess(u);render()}
+function users(){return `<div class="card"><h2>Add user</h2><div class="row"><label>Full name<input id="un"></label><label>Login user name<input id="uu"></label><label>Password (min 6)<input id="up" type="password"></label><label>Role<select id="ur"><option value="staff">Staff</option><option value="admin">Admin</option></select></label><button class="btn" onclick="addUser()">Add user</button></div><div id="um"></div><p class="mu">Staff: customers, daily entry, billing, printing and payments. Admin: everything, including expenses, balance sheet, settings and users.</p></div>
+<div class="card tw"><table><tr><th>Name</th><th>Login</th><th>Role</th><th></th></tr>${S.users.map(u=>`<tr><td>${esc(u.name)}${u.id===cur.id?" (you)":""}</td><td>${esc(u.user)}</td><td>${u.role}</td><td>${uRes===u.id?`<input id="np" type="password" placeholder="New password" style="width:140px"> <button class="btn" onclick="resetPw('${u.id}')">Set</button> <button class="btn g" onclick="uRes=null;render()">Cancel</button>`:`<button class="btn g" onclick="uRes='${u.id}';render()">Reset password</button>`} ${u.id!==cur.id?(uDel===u.id?`<button class="btn d" onclick="delUser('${u.id}')">Confirm delete</button> <button class="btn g" onclick="uDel=null;render()">Cancel</button>`:`<button class="btn d" onclick="uDel='${u.id}';render()">Delete</button>`):""}</td></tr>`).join("")}</table></div>`}
+async function addUser(){const n=$("un").value.trim(),l=$("uu").value.trim().toLowerCase(),p=$("up").value;if(!n||!l)return msg("um","Enter name and login user name");if(p.length<6)return msg("um","Password must be at least 6 characters");if(S.users.some(u=>u.user===l))return msg("um","That login user name already exists");
+ const salt=uid();S.users.push({id:uid(),name:n,user:l,role:$("ur").value,salt,hash:await hash(p,salt)});save();render()}
+async function resetPw(id){const p=$("np").value;if(p.length<6)return msg("um","Password must be at least 6 characters");const u=S.users.find(x=>x.id===id);u.salt=uid();u.hash=await hash(p,u.salt);save();uRes=null;render();msg("um","Password updated",1)}
+function delUser(id){if(id===cur.id)return;S.users=S.users.filter(u=>u.id!==id);uDel=null;save();render()}
+function account(){return `<div class="card"><h2>My account</h2><p>${esc(cur.name)} · login <b>${esc(cur.user)}</b> · ${cur.role}</p><div class="row"><label>Current password<input id="cp0" type="password"></label><label>New password (min 6)<input id="cp1" type="password"></label><button class="btn" onclick="chgPw()">Change password</button><button class="btn g" onclick="logout()">Logout</button></div><div id="am"></div></div>`}
+async function chgPw(){if(await hash($("cp0").value,cur.salt)!==cur.hash)return msg("am","Current password is wrong");const p=$("cp1").value;if(p.length<6)return msg("am","New password must be at least 6 characters");cur.salt=uid();cur.hash=await hash(p,cur.salt);save();msg("am","Password changed",1)}
+function othRows(cid,f,t){const L=(S.oth||[]).filter(x=>x.c===cid&&x.d>=f&&x.d<=t).sort((a,b)=>a.d.localeCompare(b.d));
+ return L.length?'<tr><th colspan="5">Other items</th></tr>'+L.map(x=>`<tr><td></td><td>${x.d.slice(5)} ${esc(x.n)}</td><td class="r">${x.q} ${esc(x.u)}</td><td class="r">${fmt(x.r)}</td><td class="r">${fmt(x.q*x.r)}</td></tr>`).join(""):""}
+let oDate=today(),oDel=null,oC="",oI="";
+function others(){S.items=S.items||[];S.oth=S.oth||[];const L=S.oth.filter(x=>x.d===oDate),adm=cur.role==="admin",it=S.items.find(i=>i.id===oI)||S.items[0]||{};
+ return `<div class="card"><h2>Sell other items (curd, ghee, paneer...)</h2><div class="row"><label>Date<input type="date" value="${oDate}" onchange="oDate=this.value;render()"></label>
+ <label>Customer<select id="oc">${S.cust.map(c=>`<option value="${c.id}" ${c.id===oC?"selected":""}>${esc(c.name)}</option>`).join("")}</select></label>
+ <label>Item<select id="oi" onchange="oRate()">${S.items.map(i=>`<option value="${i.id}" ${i.id===it.id?"selected":""}>${esc(i.name)} (${esc(i.unit)})</option>`).join("")}</select></label>
+ <label>Qty<input id="oq" type="number" step="0.25" min="0" style="width:90px"></label><label>Rate<input id="or" type="number" step="0.5" style="width:100px" value="${it.rate??""}"></label>
+ <button class="btn" onclick="addOth()">Add sale</button></div><div id="omsg"></div>
+ <div class="tw"><table><tr><th>Customer</th><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amount</th><th></th></tr>${L.map(x=>`<tr><td>${esc(cname(x.c))}</td><td>${esc(x.n)}</td><td class="r">${x.q} ${esc(x.u)}</td><td class="r">${fmt(x.r)}</td><td class="r">${fmt(x.q*x.r)}</td><td><button class="btn d" onclick="delOth('${x.id}')">✕</button></td></tr>`).join("")||'<tr><td class="mu">No other-item sales on this date</td></tr>'}</table></div></div>
+ <div class="card"><h2>Items &amp; rates</h2><div class="row"><label>Item name<input id="in"></label><label>Unit<input id="iu" value="kg" style="width:70px"></label><label>Rate<input id="ir" type="number" step="0.5" style="width:100px"></label><button class="btn" onclick="addItem()">Add item</button></div><div id="imsg"></div>
+ <div class="tw"><table><tr><th>Item</th><th>Unit</th><th class="r">Default rate</th><th></th></tr>${S.items.map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.unit)}</td><td class="r"><input type="number" step="0.5" value="${i.rate}" onchange="setItemRate('${i.id}',this.value)"></td><td>${adm?(oDel===i.id?`<button class="btn d" onclick="delItem('${i.id}')">Confirm delete</button> <button class="btn g" onclick="oDel=null;render()">Cancel</button>`:`<button class="btn d" onclick="oDel='${i.id}';render()">Delete</button>`):""}</td></tr>`).join("")}</table></div><p class="mu">Rate changes apply to future sales only. Each sale keeps the rate it was sold at.</p></div>`}
+function oRate(){const i=S.items.find(x=>x.id===$("oi").value);if(i){$("or").value=i.rate;oI=i.id}}
+function addOth(){const c=$("oc").value,i=S.items.find(x=>x.id===$("oi").value),q=+$("oq").value,r=+$("or").value;if(!c||!i||!(q>0)||!(r>=0))return msg("omsg","Select customer and item, and enter a quantity");
+ S.oth.push({id:uid(),d:oDate,c,i:i.id,n:i.name,u:i.unit,q,r});oC=c;oI=i.id;save();render();msg("omsg","Sale added",1)}
+function delOth(id){S.oth=S.oth.filter(x=>x.id!==id);save();render()}
+function addItem(){const n=$("in").value.trim(),r=+$("ir").value;if(!n||!(r>=0)||$("ir").value==="")return msg("imsg","Enter item name and rate");S.items.push({id:uid(),name:n,unit:$("iu").value.trim()||"unit",rate:r});save();render()}
+function setItemRate(id,v){const i=S.items.find(x=>x.id===id);if(i){i.rate=+v||0;save()}}
+function delItem(id){if(cur.role!=="admin")return;S.items=S.items.filter(i=>i.id!==id);oDel=null;save();render()}
+function printDoc(){
+ const c=$("main").cloneNode(true);c.querySelectorAll(".noprint").forEach(e=>e.remove());
+ const css=document.querySelector("style").textContent;
+ const h='<!DOCTYPE html><html data-theme="light"><head><meta charset="utf-8"><title>'+esc(S.name)+'</title><style>'+css+'</style></head><body><main>'+c.innerHTML+'</main></body></html>';
+ let w=null;try{w=window.open("","_blank")}catch(e){}
+ if(w){w.document.open();w.document.write(h);w.document.close();setTimeout(()=>{try{w.focus();w.print()}catch(e){}},400)}
+ else{try{window.print()}catch(e){}alert("Printing is blocked in this view. Open the artifact link in its own browser tab and press Ctrl+P, or allow pop-ups for this site and try again.")}
+}
+load();sess();render();
+</script>
+</body>
+</html>
